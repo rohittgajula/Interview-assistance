@@ -1,0 +1,4 @@
+.env
+logs/
+auth_data/
+interview_data/
