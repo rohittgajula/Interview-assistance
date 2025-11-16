@@ -1,0 +1,73 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# Database
+*.sqlite3
+*.db
+db.sqlite3
+
+# Environment files (use docker-compose env_file instead)
+# .env files are needed, so commented out
+# .env
+# .env.*
+
+# Logs (keep logs directory structure, exclude log files)
+*.log
+# logs/ - keep this, it's created in Dockerfile
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+.hypothesis/
+
+# Django
+*.pot
+local_settings.py
+staticfiles/
+media/
+
+# Bloom Filter specific
+# Exclude any local bloom filter dumps or cache files
+*.bloom
+*.filter
+*.cache
+
+# Documentation
+*.md
+docs/
+
+# OS
+.DS_Store
+Thumbs.db

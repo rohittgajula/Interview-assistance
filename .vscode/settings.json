@@ -1,0 +1,11 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/auth_service/venv/bin/python",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/auth_service"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/auth_service"
+    ],
+    "python.languageServer": "Pylance",
+    "python.analysis.typeCheckingMode": "basic"
+}

@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "auth_service"
+    },
+    {
+      "path": "bloom_filter_service"
+    },
+    {
+      "path": "celery_service"
+    },
+    {
+      "path": "nginx"
+    }
+  ],
+  "settings": {
+    "git.ignoreLimitWarning": true
+  }
+}

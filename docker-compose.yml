@@ -1,0 +1,233 @@
+services:
+  auth_service:
+    build:
+      context: ./auth_service
+    container_name: auth_service
+    volumes:
+      - ./auth_service:/app
+    command: >
+      sh -c "mkdir -p /app/logs &&
+              python manage.py makemigrations &&
+              python manage.py migrate &&
+              python manage.py runserver 0.0.0.0:8000"
+    # command: >
+    #   sh -c "until pg_isready -h $DB_HOST -p $DB_PORT; do
+    #           echo 'Waiting for DB...';
+    #           sleep 2;
+    #         done &&
+    #         python manage.py migrate &&
+    #         python manage.py runserver 0.0.0.0:8000"
+    expose:
+      - 8000
+    env_file:
+      - ./auth_service/.env
+    depends_on:
+      auth_db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  interview_service:
+    build:
+      context: ./interview_service
+    container_name: interview_service
+    volumes:
+      - ./interview_service:/app
+    command: >
+      sh -c "python manage.py makemigrations &&
+              python manage.py migrate &&
+              python manage.py runserver 0.0.0.0:8001"
+    # command: >
+    #   sh -c "until pg_isready -h $DB_HOST -p $DB_PORT; do
+    #           echo 'Waiting for DB...';
+    #           sleep 2;
+    #         done &&
+    #         python manage.py migrate &&
+    #         python manage.py runserver 0.0.0.0:8001"
+    expose:
+      - 8001
+    env_file:
+      - ./interview_service/.env
+    depends_on:
+      interview_db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  bloom_filter_service:
+    build:
+      context: ./bloom_filter_service
+    container_name: bloom_filter_service
+    volumes:
+      - ./bloom_filter_service:/app
+    command: >
+      sh -c "mkdir -p /app/logs &&
+              python manage.py makemigrations &&
+              python manage.py migrate &&
+              python manage.py runserver 0.0.0.0:8002"
+    expose:
+      - 8002
+    env_file:
+      - ./bloom_filter_service/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+
+  celery_worker:
+    build:
+      context: ./celery_service
+    container_name: celery_service
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      celery -A celery_service worker
+      --queues=auth_queue,interview_queue,bloom_filter_queue,default
+      --concurrency=4
+      --pool=threads
+      --loglevel=info
+      --optimization=fair
+      --max-tasks-per-child=1000
+      --time-limit=1800
+      --soft-time-limit=1500
+    environment:
+      - PYTHONPATH=/app
+      - CELERY_WORKER_CONCURRENCY=4
+      - CELERY_WORKER_POOL=threads
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+      - auth_service
+      - interview_service
+      - bloom_filter_service
+    networks:
+      - backend
+
+  celery_beat:
+    build:
+      context: ./celery_service
+    container_name: celery_beat
+    volumes:
+      - .:/app
+      - celery_beat_data:/app/beat_data # Persist beat schedule directory
+    working_dir: /app
+    command: >
+      sh -c "mkdir -p /app/beat_data &&
+             celery -A celery_service beat --loglevel=info --schedule=/app/beat_data/celerybeat-schedule"
+    environment:
+      - PYTHONPATH=/app
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+      - auth_service
+      - interview_service
+      - bloom_filter_service
+    networks:
+      - backend
+
+  celery_flower:
+    build:
+      context: ./celery_service
+    container_name: celery_flower
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: celery -A celery_service flower --port=5555 --broker_api=http://guest:guest@redis:6379//
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONPATH=/app
+      - FLOWER_BASIC_AUTH=admin:admin
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  auth_db:
+    image: postgres:15
+    container_name: auth_db
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_USER: ${AUTH_USER}
+      POSTGRES_PASSWORD: ${AUTH_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_USER} -d ${AUTH_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+    ports:
+      - "${AUTH_EXTERNAL_PORT}:${AUTH_PORT}"
+    networks:
+      - backend
+
+  interview_db:
+    image: postgres:15
+    container_name: interview_db
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_USER: ${INTERVIEW_USER}
+      POSTGRES_PASSWORD: ${INTERVIEW_PASSWORD}
+      POSTGRES_DB: ${INTERVIEW_DB_NAME}
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${INTERVIEW_USER} -d ${INTERVIEW_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - interview_data:/var/lib/postgresql/data
+    ports:
+      - "${INTERVIEW_EXTERNAL_PORT}:${INTERVIEW_PORT}"
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth_service
+      - interview_service
+      - bloom_filter_service
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  auth_data:
+  interview_data:
+  celery_beat_data:
