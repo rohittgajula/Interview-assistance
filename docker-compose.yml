@@ -1,10 +1,66 @@
 services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - backend
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - backend
+    restart: unless-stopped
+
+
   auth_service:
     build:
       context: ./auth_service
     container_name: auth_service
     volumes:
       - ./auth_service:/app
+      - ./common:/app/common
     command: >
       sh -c "mkdir -p /app/logs &&
               python manage.py makemigrations &&
@@ -24,6 +80,8 @@ services:
     depends_on:
       auth_db:
         condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - backend
 
@@ -33,6 +91,7 @@ services:
     container_name: interview_service
     volumes:
       - ./interview_service:/app
+      - ./common:/app/common
     command: >
       sh -c "python manage.py makemigrations &&
               python manage.py migrate &&
@@ -51,6 +110,8 @@ services:
     depends_on:
       interview_db:
         condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - backend
 
@@ -60,6 +121,7 @@ services:
     container_name: bloom_filter_service
     volumes:
       - ./bloom_filter_service:/app
+      - ./common:/app/common
     command: >
       sh -c "mkdir -p /app/logs &&
               python manage.py makemigrations &&
@@ -72,81 +134,108 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - backend
 
-  celery_worker:
+  auth_celery_worker:
     build:
-      context: ./celery_service
-    container_name: celery_service
+      context: ./auth_service
+    container_name: auth_celery_worker
     volumes:
-      - .:/app
-    working_dir: /app
-    command: >
-      celery -A celery_service worker
-      --queues=auth_queue,interview_queue,bloom_filter_queue,default
-      --concurrency=4
-      --pool=threads
-      --loglevel=info
-      --optimization=fair
-      --max-tasks-per-child=1000
-      --time-limit=1800
-      --soft-time-limit=1500
-    environment:
-      - PYTHONPATH=/app
-      - CELERY_WORKER_CONCURRENCY=4
-      - CELERY_WORKER_POOL=threads
+      - ./auth_service:/app
+      - ./common:/app/common
+    command: celery -A auth_service worker --loglevel=info --queues=auth_queue
     env_file:
-      - ./.env
+      - ./auth_service/.env
     depends_on:
-      - redis
-      - auth_service
-      - interview_service
-      - bloom_filter_service
+      auth_db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+
+  interview_celery_worker:
+    build:
+      context: ./interview_service
+    container_name: interview_celery_worker
+    volumes:
+      - ./interview_service:/app
+      - ./common:/app/common
+    command: celery -A interview_service worker --loglevel=info --queues=interview_queue
+    env_file:
+      - ./interview_service/.env
+    depends_on:
+      interview_db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+
+  bloom_filter_celery_worker:
+    build:
+      context: ./bloom_filter_service
+    container_name: bloom_filter_celery_worker
+    volumes:
+      - ./bloom_filter_service:/app
+      - ./common:/app/common
+    command: celery -A bloom_filter_service worker --loglevel=info --queues=bloom_filter_queue
+    env_file:
+      - ./bloom_filter_service/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - backend
 
   celery_beat:
     build:
-      context: ./celery_service
+      context: ./bloom_filter_service
     container_name: celery_beat
     volumes:
-      - .:/app
+      - ./bloom_filter_service:/app
+      - ./common:/app/common
       - celery_beat_data:/app/beat_data # Persist beat schedule directory
     working_dir: /app
     command: >
       sh -c "mkdir -p /app/beat_data &&
-             celery -A celery_service beat --loglevel=info --schedule=/app/beat_data/celerybeat-schedule"
+             celery -A bloom_filter_service beat --loglevel=info --schedule=/app/beat_data/celerybeat-schedule"
     environment:
       - PYTHONPATH=/app
     env_file:
-      - ./.env
+      - ./bloom_filter_service/.env
     depends_on:
       - redis
-      - auth_service
-      - interview_service
-      - bloom_filter_service
     networks:
       - backend
 
   celery_flower:
     build:
-      context: ./celery_service
+      context: ./bloom_filter_service
     container_name: celery_flower
     volumes:
-      - .:/app
+      - ./bloom_filter_service:/app
+      - ./common:/app/common
     working_dir: /app
-    command: celery -A celery_service flower --port=5555 --broker_api=http://guest:guest@redis:6379//
+    command: celery -A bloom_filter_service flower --port=5555 --broker_api=http://guest:guest@redis:6379//
     ports:
       - "5555:5555"
     environment:
       - PYTHONPATH=/app
       - FLOWER_BASIC_AUTH=admin:admin
     env_file:
-      - ./.env
+      - ./bloom_filter_service/.env
     depends_on:
       - redis
-      - celery_worker
     networks:
       - backend
 
@@ -231,3 +320,6 @@ volumes:
   auth_data:
   interview_data:
   celery_beat_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_logs:

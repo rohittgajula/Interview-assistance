@@ -1,4 +1,5 @@
 asgiref==3.10.0
+confluent-kafka==2.3.0
 Django==5.2.8
 djangorestframework==3.16.1
 psycopg2-binary==2.9.11
@@ -6,3 +7,5 @@ PyJWT==2.10.1
 python-decouple==3.8
 sqlparse==0.5.3
 typing_extensions==4.15.0
+celery==5.3.6
+redis==5.0.1

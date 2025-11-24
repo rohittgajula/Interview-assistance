@@ -1,12 +1,12 @@
 import os
 from celery import Celery
 from django.conf import settings
-from common.celery_config import beat_schedule, task_routes
+from common.celery_config import task_routes
 
 # Set the default Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bloom_filter_service.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'auth_service.settings')
 
-app = Celery('bloom_filter_service')
+app = Celery('auth_service')
 
 # Using a string here means the worker doesn't have to serialize
 # the configuration object to child processes.
@@ -16,7 +16,6 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
 # Apply shared configuration
-app.conf.beat_schedule = beat_schedule
 app.conf.task_routes = task_routes
 
 @app.task(bind=True)
