@@ -7,6 +7,10 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bloom_filter_service.settings')
+    
+    from common.tracing import setup_tracing
+    setup_tracing("bloom_filter_service")
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

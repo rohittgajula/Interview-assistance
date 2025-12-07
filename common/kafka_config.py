@@ -3,7 +3,7 @@ Kafka configuration for interview-assistance microservices.
 Centralizes Kafka settings, topic names, and connection parameters.
 """
 import os
-from decouple import config
+# from decouple import config
 
 
 # Kafka Connection Settings

@@ -10,7 +10,15 @@ ENV PYTHONUNBUFFERED 1
 # install required system packages (PostgreSQL client, etc.)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    postgresql-client && \
+    postgresql-client \
+    ffmpeg \
+    libmagic1 \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0b \
+    libffi-dev \
+    libjpeg-dev \
+    libopenjp2-7 && \
     rm -rf /var/lib/apt/lists/*
 
 

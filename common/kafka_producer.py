@@ -95,18 +95,7 @@ class EventProducer:
         key: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> bool:
-        """
-        Publish an event to a Kafka topic.
 
-        Args:
-            topic: Kafka topic name
-            event: Event instance to publish
-            key: Optional message key for partitioning
-            headers: Optional message headers
-
-        Returns:
-            bool: True if successfully queued, False otherwise
-        """
         try:
             # Serialize event
             value = serialize_event(event)

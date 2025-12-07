@@ -7,6 +7,13 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'interview_service.settings')
+    
+    # Add the parent directory to sys.path to allow importing common modules
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    from common.tracing import setup_tracing
+    setup_tracing("interview_service")
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -1,11 +1,70 @@
+# Core Django & DRF
 asgiref==3.10.0
-confluent-kafka==2.3.0
 Django==5.2.8
 djangorestframework==3.16.1
-psycopg2-binary==2.9.11
-PyJWT==2.10.1
-python-decouple==3.8
 sqlparse==0.5.3
 typing_extensions==4.15.0
+
+# Database
+psycopg2-binary==2.9.11
+
+# Authentication
+PyJWT==2.10.1
+
+# Configuration
+python-decouple==3.8
+
+# Message Queue & Events
+confluent-kafka==2.3.0
 celery==5.3.6
 redis==5.0.1
+
+# Real-time Communication (Django Channels)
+channels==4.0.0
+channels-redis==4.1.0
+daphne==4.0.0
+
+# AI/LLM
+openai==1.54.0
+langchain==0.3.7
+langchain-openai==0.2.8
+langchain-core==0.3.17
+
+# Speech Processing
+openai-whisper==20231117
+assemblyai==0.33.0
+pydub==0.25.1
+
+# API Documentation
+drf-spectacular==0.27.2
+drf-spectacular-sidecar==2024.11.1
+
+# Security
+cryptography==43.0.3
+
+# PDF Generation
+reportlab==4.2.5
+weasyprint==63.1
+
+# Image Processing
+pillow==11.0.0
+
+# File Type Detection
+python-magic==0.4.27
+
+# Object Storage
+minio==7.2.0
+
+# Observability
+opentelemetry-api==1.28.2
+opentelemetry-sdk==1.28.2
+opentelemetry-exporter-otlp==1.28.2
+opentelemetry-instrumentation-django==0.49b2
+opentelemetry-instrumentation-psycopg2==0.49b2
+opentelemetry-instrumentation-requests==0.49b2
+opentelemetry-instrumentation-celery==0.49b2
+opentelemetry-instrumentation-redis==0.49b2
+opentelemetry-instrumentation-confluent-kafka==0.49b2
+
+# Utilities
+requests==2.32.3

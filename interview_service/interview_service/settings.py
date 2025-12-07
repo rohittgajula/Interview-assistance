@@ -33,6 +33,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # Must be before django.contrib.staticfiles for Channels
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,7 +41,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    "rest_framework",
+    # Third-party apps
+    'rest_framework',
+    'channels',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
+
+    # Local apps
+    'interviews',
 ]
 
 MIDDLEWARE = [
@@ -55,10 +63,50 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'interview_service.urls'
 
+# Django Channels Configuration
+ASGI_APPLICATION = 'interview_service.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(os.getenv('REDIS_HOST', 'redis'), 6379)],
+        },
+    },
+}
+
+# Django REST Framework Configuration
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'interviews.authentication.JWTAuthenticationFromAuthService',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-    ]
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    }
+}
+
+# DRF Spectacular Settings (API Documentation)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Interview Service API',
+    'DESCRIPTION': 'AI-powered interview practice and live interview platform',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': r'/api/v1',
 }
 
 TEMPLATES = [
@@ -77,6 +125,11 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'interview_service.wsgi.application'
+
+# JWT Authentication Configuration
+JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY', SECRET_KEY)  # Must match auth_service
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
+JWT_ACCESS_TOKEN_LIFETIME = int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 3600))  # 1 hour in seconds
 
 
 # Database
@@ -103,6 +156,50 @@ DATABASES = {
 # Celery Configuration
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_TASK_ROUTES = {
+    'interviews.tasks.generate_interview_questions': {'queue': 'ai_queue'},
+    'interviews.tasks.analyze_answer_feedback': {'queue': 'ai_queue'},
+    'interviews.tasks.generate_session_report': {'queue': 'ai_queue'},
+    'interviews.tasks.generate_followup_question': {'queue': 'ai_queue'},
+    'interviews.tasks.process_answer_audio': {'queue': 'audio_queue'},
+    'interviews.tasks.merge_session_audio': {'queue': 'audio_queue'},
+    'interviews.tasks.update_user_progress': {'queue': 'interview_queue'},
+    'interviews.tasks.publish_session_events': {'queue': 'interview_queue'},
+}
+
+# MinIO Configuration (Object Storage)
+MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'minio:9000')
+MINIO_ACCESS_KEY = os.getenv('MINIO_ROOT_USER', 'minioadmin')
+MINIO_SECRET_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'minioadmin')
+MINIO_SECURE = os.getenv('MINIO_SECURE', 'False') == 'True'
+MINIO_BUCKET_PROFILES = os.getenv('MINIO_BUCKET_PROFILES', 'user-profiles')
+MINIO_BUCKET_DOCUMENTS = os.getenv('MINIO_BUCKET_DOCUMENTS', 'user-documents')
+MINIO_BUCKET_AUDIO = os.getenv('MINIO_BUCKET_AUDIO', 'interview-audio')
+MINIO_BUCKET_RECORDINGS = os.getenv('MINIO_BUCKET_RECORDINGS', 'interview-recordings')
+MINIO_BUCKET_TEMP = os.getenv('MINIO_BUCKET_TEMP', 'temporary-files')
+
+# AI Provider Defaults
+DEFAULT_AI_PROVIDER = os.getenv('DEFAULT_AI_PROVIDER', 'openai')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+OPENAI_TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
+OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '2000'))
+
+# Speech Provider Defaults
+DEFAULT_STT_PROVIDER = os.getenv('DEFAULT_STT_PROVIDER', 'whisper')
+DEFAULT_TTS_PROVIDER = os.getenv('DEFAULT_TTS_PROVIDER', 'openai')
+ASSEMBLYAI_API_KEY = os.getenv('ASSEMBLYAI_API_KEY', '')
+GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+
+# API Key Encryption (for storing provider API keys)
+FERNET_KEY = os.getenv('FERNET_KEY', '')  # Generate with: from cryptography.fernet import Fernet; Fernet.generate_key()
+
+# File Upload Settings
+MAX_UPLOAD_SIZE_MB = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+ALLOWED_AUDIO_FORMATS = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm']
+ALLOWED_IMAGE_FORMATS = ['image/jpeg', 'image/png', 'image/gif']
+ALLOWED_DOCUMENT_FORMATS = ['application/pdf']
 
 
 # Password validation

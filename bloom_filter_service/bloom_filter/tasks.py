@@ -29,37 +29,50 @@ def rebuild_bloom_filter(self):
     try:
         # Import here to avoid circular imports
         from .service import bloom_service
+        from common.kafka_producer import publish_event
+        from common.events import FilterRebuildStartedEvent
+        import uuid
         
         # Fetch users from auth service
-        auth_url = f"{settings.AUTH_SERVICE_URL}/api/users/"
+        # auth_url = f"{settings.AUTH_SERVICE_URL}/api/users/"
         
-        try:
-            response = requests.get(auth_url, timeout=30)
-            if response.status_code == 200:
-                users = response.json()
-                
-                # Add all usernames and emails to bloom filter
-                username_count = 0
-                email_count = 0
-                
-                for user in users:
-                    if 'username' in user and user['username']:
-                        bloom_service.add_username(user['username'])
-                        username_count += 1
-                    
-                    if 'email' in user and user['email']:
-                        bloom_service.add_email(user['email'])
-                        email_count += 1
-                
-                logger.info(f"Rebuilt bloom filter: {username_count} usernames, {email_count} emails")
-                return True
-            else:
-                logger.error(f"Failed to fetch users from auth service: {response.status_code}")
-                return False
-        
-        except requests.RequestException as e:
-            logger.error(f"Request error while fetching users: {e}")
-            return False
+        # try:
+        #     response = requests.get(auth_url, timeout=30)
+        #     if response.status_code == 200:
+        #         users = response.json()
+        #         
+        #         # Add all usernames and emails to bloom filter
+        #         username_count = 0
+        #         email_count = 0
+        #         
+        #         for user in users:
+        #             if 'username' in user and user['username']:
+        #                 bloom_service.add_username(user['username'])
+        #                 username_count += 1
+        #             
+        #             if 'email' in user and user['email']:
+        #                 bloom_service.add_email(user['email'])
+        #                 email_count += 1
+        #         
+        #         logger.info(f"Rebuilt bloom filter: {username_count} usernames, {email_count} emails")
+        #         return True
+        #     else:
+        #         logger.error(f"Failed to fetch users from auth service: {response.status_code}")
+        #         return False
+        # 
+        # except requests.RequestException as e:
+        #     logger.error(f"Request error while fetching users: {e}")
+        #     return False
+
+        # New Kafka implementation
+        rebuild_id = str(uuid.uuid4())
+        event = FilterRebuildStartedEvent(
+            rebuild_id=rebuild_id,
+            filter_type="all"
+        )
+        publish_event("bloom.filter.events", event, key=rebuild_id)
+        logger.info(f"Published FilterRebuildStartedEvent: {rebuild_id}")
+        return True
             
     except Exception as e:
         logger.error(f"Error in rebuild_bloom_filter task: {e}")

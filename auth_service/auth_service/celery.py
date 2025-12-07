@@ -18,6 +18,13 @@ app.autodiscover_tasks()
 # Apply shared configuration
 app.conf.task_routes = task_routes
 
+from celery.signals import worker_process_init
+from common.tracing import setup_tracing
+
+@worker_process_init.connect(weak=False)
+def init_celery_tracing(*args, **kwargs):
+    setup_tracing("auth_service_worker")
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

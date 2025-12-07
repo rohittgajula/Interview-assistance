@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseEvent:
     """Base event class with common fields"""
     event_type: str
@@ -32,29 +32,36 @@ class BaseEvent:
 
 # User Events
 
-@dataclass
+@dataclass(kw_only=True)
 class UserCreatedEvent(BaseEvent):
     """Event published when a new user is created"""
     user_id: str
     username: str
     email: str
     role: str
+    date_of_birth: Optional[str] = None  # ISO format date string
+    age: Optional[int] = None
+    is_active: bool = True
     event_type: str = "user.created"
     service: str = "auth_service"
 
     def __init__(self, user_id: str, username: str, email: str, role: str,
-                 timestamp: Optional[str] = None, **kwargs):
+                 date_of_birth: Optional[str] = None, age: Optional[int] = None,
+                 is_active: bool = True, timestamp: Optional[str] = None, **kwargs):
         self.user_id = user_id
         self.username = username
         self.email = email
         self.role = role
+        self.date_of_birth = date_of_birth
+        self.age = age
+        self.is_active = is_active
         self.event_type = "user.created"
         self.service = "auth_service"
         self.version = kwargs.get('version', "1.0")
         self.timestamp = timestamp or datetime.utcnow().isoformat()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class UserUpdatedEvent(BaseEvent):
     """Event published when a user is updated"""
     user_id: str
@@ -80,7 +87,7 @@ class UserUpdatedEvent(BaseEvent):
         self.timestamp = timestamp or datetime.utcnow().isoformat()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class UserDeletedEvent(BaseEvent):
     """Event published when a user is deleted"""
     user_id: str
@@ -100,7 +107,7 @@ class UserDeletedEvent(BaseEvent):
         self.timestamp = timestamp or datetime.utcnow().isoformat()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class UserLoginEvent(BaseEvent):
     """Event published when a user logs in"""
     user_id: str
@@ -126,7 +133,7 @@ class UserLoginEvent(BaseEvent):
 
 # Organization Events
 
-@dataclass
+@dataclass(kw_only=True)
 class OrganizationCreatedEvent(BaseEvent):
     """Event published when an organization is created"""
     organization_id: str
@@ -146,7 +153,7 @@ class OrganizationCreatedEvent(BaseEvent):
         self.timestamp = timestamp or datetime.utcnow().isoformat()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class MemberAddedEvent(BaseEvent):
     """Event published when a member is added to an organization"""
     organization_id: str
@@ -170,7 +177,7 @@ class MemberAddedEvent(BaseEvent):
 
 # Bloom Filter Events
 
-@dataclass
+@dataclass(kw_only=True)
 class FilterRebuildStartedEvent(BaseEvent):
     """Event published when bloom filter rebuild starts"""
     rebuild_id: str
@@ -188,7 +195,7 @@ class FilterRebuildStartedEvent(BaseEvent):
         self.timestamp = timestamp or datetime.utcnow().isoformat()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FilterRebuildCompletedEvent(BaseEvent):
     """Event published when bloom filter rebuild completes"""
     rebuild_id: str
@@ -212,7 +219,7 @@ class FilterRebuildCompletedEvent(BaseEvent):
 
 # Interview Events (for future use)
 
-@dataclass
+@dataclass(kw_only=True)
 class InterviewScheduledEvent(BaseEvent):
     """Event published when an interview is scheduled"""
     interview_id: str

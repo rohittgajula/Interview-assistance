@@ -1,25 +1,25 @@
 {
-  "folders": [
-    {
-      "path": "."
-    },
-    {
-      "path": "auth_service"
-    },
-    {
-      "path": "bloom_filter_service"
-    },
-    {
-      "path": "celery_service"
-    },
-    {
-      "path": "nginx"
-    },
-    {
-      "path": "interview_service"
-    }
-  ],
-  "settings": {
-    "git.ignoreLimitWarning": true
-  }
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "auth_service"
+		},
+		{
+			"path": "beat_data"
+		},
+		{
+			"path": "bloom_filter_service"
+		},
+		{
+			"path": "common"
+		},
+		{
+			"path": "interview_service"
+		},
+		{
+			"path": "nginx"
+		}
+	]
 }

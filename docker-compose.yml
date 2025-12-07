@@ -53,6 +53,105 @@ services:
       - backend
     restart: unless-stopped
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: jaeger
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "9411:9411"   # Zipkin
+    networks:
+      - backend
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.88.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317"        # OTLP gRPC receiver
+      - "4318"        # OTLP HTTP receiver
+      - "55679:55679" # zpages extension
+    networks:
+      - backend
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - backend
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000" # API Port
+      - "9001:9001" # Console Port
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client for initial bucket creation
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - backend
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      /usr/bin/mc mb myminio/user-profiles --ignore-existing;
+      /usr/bin/mc mb myminio/user-documents --ignore-existing;
+      /usr/bin/mc mb myminio/interview-audio --ignore-existing;
+      /usr/bin/mc mb myminio/interview-recordings --ignore-existing;
+      /usr/bin/mc mb myminio/system-backups --ignore-existing;
+      /usr/bin/mc mb myminio/temporary-files --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/user-profiles;
+      echo 'MinIO buckets created successfully';
+      exit 0;
+      "
 
   auth_service:
     build:
@@ -93,7 +192,8 @@ services:
       - ./interview_service:/app
       - ./common:/app/common
     command: >
-      sh -c "python manage.py makemigrations &&
+      sh -c "mkdir -p /app/logs &&
+              python manage.py makemigrations --noinput &&
               python manage.py migrate &&
               python manage.py runserver 0.0.0.0:8001"
     # command: >
@@ -239,6 +339,63 @@ services:
     networks:
       - backend
 
+  auth_kafka_consumer:
+    build:
+      context: ./auth_service
+    container_name: auth_kafka_consumer
+    volumes:
+      - ./auth_service:/app
+      - ./common:/app/common
+    command: python consumer.py
+    env_file:
+      - ./auth_service/.env
+    depends_on:
+      auth_db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
+  bloom_filter_kafka_consumer:
+    build:
+      context: ./bloom_filter_service
+    container_name: bloom_filter_kafka_consumer
+    volumes:
+      - ./bloom_filter_service:/app
+      - ./common:/app/common
+    command: python consumer.py
+    env_file:
+      - ./bloom_filter_service/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
+  interview_kafka_consumer:
+    build:
+      context: ./interview_service
+    container_name: interview_kafka_consumer
+    volumes:
+      - ./interview_service:/app
+      - ./common:/app/common
+    command: python consumer.py
+    env_file:
+      - ./interview_service/.env
+    depends_on:
+      interview_db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -323,3 +480,4 @@ volumes:
   kafka_data:
   zookeeper_data:
   zookeeper_logs:
+  minio_data:
