@@ -26,12 +26,12 @@ class InterviewEventConsumer(EventConsumer):
 
             elif isinstance(event, UserUpdatedEvent):
                 logger.info(f"User updated: {event.user_id}")
-                # Handle user updated event - could sync user data if needed
+                self._handle_user_updated(event)
                 return True
 
             elif isinstance(event, UserDeletedEvent):
                 logger.info(f"User deleted: {event.username} (ID: {event.user_id})")
-                # Handle user deleted event - could cleanup interview data if needed
+                self._handle_user_deleted(event)
                 return True
 
             return True
@@ -39,6 +39,43 @@ class InterviewEventConsumer(EventConsumer):
         except Exception as e:
             logger.error(f"Error processing event: {e}")
             return False
+        
+    def _handle_user_updated(self, event: UserUpdatedEvent):
+        try:
+            if event.user_id:
+                try:
+                    profile = UserProfile.objects.update(id=event.user_id)
+
+                    if event.username is not None:
+                        profile.username = event.username
+                    if event.email is not None:
+                        profile.email = event.email
+                    if event.role is not None:
+                        profile.role = event.role
+                    profile.save()
+                    logger.info(f"update userProfile for user {event.username} - {event.user_id}")
+                except UserProfile.DoesNotExist:
+                    logger.error(f"userProfile not found for user {event.username} - {event.user_id}")
+
+        except Exception as e:
+            logger.error(f"error updating userProfile for {event.user_id}: {e}")
+        
+    def _handle_user_deleted(self, event: UserDeletedEvent):
+        try:
+            if event.user_id:
+                try:
+                    profile = UserProfile.objects.get(id=event.user_id)
+                    profile.delete()
+                    logger.info(f"userProfile deleted for user {event.username} - {event.user_id}")
+                except UserProfile.DoesNotExist:
+                    logger.error(f"userProfile not found for user {event.username} - {event.user_id}")
+
+                # if profile:
+                #     profile.delete()
+                #     logger.info(f"userProfile deleted for user {event.username} - {event.user_id}")
+
+        except Exception as e:
+            logger.error(f"error deleting userProfile for {event.username} - {event.user_id}: {e}")
 
     def _handle_user_created(self, event: UserCreatedEvent):
         try:
@@ -75,7 +112,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     from common.tracing import setup_tracing
-    setup_tracing("interview_service_consumer")
+    # Don't instrument Django here - it was already instrumented via AppConfig.ready()
+    setup_tracing("interview_service_consumer", instrument_django=False)
 
     logger.info("Starting Interview Service Kafka Consumer...")
 

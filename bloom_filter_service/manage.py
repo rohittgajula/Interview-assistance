@@ -7,9 +7,13 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bloom_filter_service.settings')
-    
+
+    # Add the parent directory to sys.path to allow importing common modules
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     from common.tracing import setup_tracing
-    setup_tracing("bloom_filter_service")
+    # Don't instrument Django during manage.py initialization - it happens via AppConfig.ready()
+    setup_tracing("bloom_filter_service", instrument_django=False)
 
     try:
         from django.core.management import execute_from_command_line

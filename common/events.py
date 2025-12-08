@@ -65,6 +65,7 @@ class UserCreatedEvent(BaseEvent):
 class UserUpdatedEvent(BaseEvent):
     """Event published when a user is updated"""
     user_id: str
+    date_of_birth: Optional[str] = None
     username: Optional[str] = None
     email: Optional[str] = None
     role: Optional[str] = None
@@ -74,12 +75,14 @@ class UserUpdatedEvent(BaseEvent):
 
     def __init__(self, user_id: str, username: Optional[str] = None,
                  email: Optional[str] = None, role: Optional[str] = None,
+                 date_of_birth: Optional[str] = None,
                  updated_fields: Optional[list] = None,
                  timestamp: Optional[str] = None, **kwargs):
         self.user_id = user_id
         self.username = username
         self.email = email
         self.role = role
+        self.date_of_birth = date_of_birth
         self.updated_fields = updated_fields or []
         self.event_type = "user.updated"
         self.service = "auth_service"

@@ -127,7 +127,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'interview_service.wsgi.application'
 
 # JWT Authentication Configuration
-JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY', SECRET_KEY)  # Must match auth_service
+# CRITICAL: JWT_SIGNING_KEY must be set in .env and must match auth_service exactly!
+JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY')
+if not JWT_SIGNING_KEY:
+    raise ValueError(
+        "JWT_SIGNING_KEY environment variable is required! "
+        "Set it in .env to match the auth_service JWT signing key."
+    )
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_ACCESS_TOKEN_LIFETIME = int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 3600))  # 1 hour in seconds
 

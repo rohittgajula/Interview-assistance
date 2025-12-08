@@ -69,7 +69,8 @@ def user_saved_handler(sender, instance, created, **kwargs):
                 user_id=user_id,
                 username=username,
                 email=email,
-                role=role
+                role=role,
+                date_of_birth=date_of_birth.isoformat() if date_of_birth else None
             )
             publish_event("user.events", event, key=user_id)
             logger.info(f"Published UserUpdatedEvent for: {username}")
@@ -79,9 +80,6 @@ def user_saved_handler(sender, instance, created, **kwargs):
 
 
 
-
-
-# this signal handles user deletion
 @receiver(post_delete, sender=User)
 def user_deleted_handler(sender, instance, **kwargs):
     try:
@@ -92,12 +90,16 @@ def user_deleted_handler(sender, instance, **kwargs):
         event = UserDeletedEvent(
             user_id=user_id,
             username=username,
-            email=email
+            email = email
         )
         publish_event("user.events", event, key=user_id)
-        logger.info(f"Published UserDeletedEvent for: {username}")
+        logger.info(f"published UserDeletedEvent for: {username}")
 
     except Exception as e:
-        logger.error(f"Error in user_deleted_handler: {e}")
+        logger.error(f"error in user_deleted_handler: {e}")
+
+
+
+
 
 

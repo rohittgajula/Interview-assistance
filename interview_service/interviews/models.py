@@ -8,11 +8,17 @@ class UserProfile(models.Model):
     Synced from auth_service via Kafka events.
     Basic fields are created via event, extended fields updated via API.
     """
+    ROLE_CHOICES = [
+        ("organization_admin", "Organization Admin"),
+        ("interviewer", "Interviewer"),
+        ("candidate", "Candidate"),
+    ]
+
     # === Fields synced from auth_service (via Kafka) ===
     id = models.UUIDField(primary_key=True, editable=False)  # Same as auth_service user.id
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=150, unique=True)
-    role = models.CharField(max_length=20)  # organization_admin, interviewer, candidate
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     date_of_birth = models.DateField(null=True, blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

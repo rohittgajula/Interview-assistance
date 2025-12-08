@@ -23,7 +23,8 @@ from common.tracing import setup_tracing
 
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
-    setup_tracing("interview_service_worker")
+    # Don't instrument Django in Celery workers (they don't handle HTTP requests)
+    setup_tracing("interview_service_worker", instrument_django=False)
 
 @app.task(bind=True)
 def debug_task(self):
