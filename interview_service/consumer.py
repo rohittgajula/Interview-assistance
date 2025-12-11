@@ -111,10 +111,6 @@ class InterviewEventConsumer(EventConsumer):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    from common.tracing import setup_tracing
-    # Don't instrument Django here - it was already instrumented via AppConfig.ready()
-    setup_tracing("interview_service_consumer", instrument_django=False)
-
     logger.info("Starting Interview Service Kafka Consumer...")
 
     topics = ['user.events']

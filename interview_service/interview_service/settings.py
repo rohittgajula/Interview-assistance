@@ -248,3 +248,35 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Logging Configuration
+
+import sys
+sys.path.insert(0, os.path.join(BASE_DIR.parent, 'common'))
+
+try:
+    from logging_config import get_logging_config
+    LOGGING = get_logging_config('interview_service', log_level='DEBUG' if DEBUG else 'INFO')
+except ImportError:
+    # Fallback if common module is not available
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'verbose': {
+                'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+                'style': '{',
+            },
+        },
+        'handlers': {
+            'console': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            },
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    }

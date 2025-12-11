@@ -18,14 +18,6 @@ app.autodiscover_tasks()
 # Apply shared configuration
 app.conf.task_routes = task_routes
 
-from celery.signals import worker_process_init
-from common.tracing import setup_tracing
-
-@worker_process_init.connect(weak=False)
-def init_celery_tracing(*args, **kwargs):
-    # Don't instrument Django in Celery workers (they don't handle HTTP requests)
-    setup_tracing("interview_service_worker", instrument_django=False)
-
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

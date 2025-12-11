@@ -98,82 +98,38 @@ BLOOM_FILTER_ERROR_RATE = float(os.getenv('BLOOM_FILTER_ERROR_RATE', 0.001))
 # Logging Configuration
 
 """
-create a logs directory : mkdir -p bloom_filter_service/logs
-
 add this to file to get logs : logger = logging.getLogger('bloom_filter')
 """
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+import sys
+sys.path.insert(0, os.path.join(BASE_DIR.parent, 'common'))
+
+try:
+    from logging_config import get_logging_config
+    LOGGING = get_logging_config('bloom_filter_service', log_level='DEBUG' if DEBUG else 'INFO')
+except ImportError:
+    # Fallback if common module is not available
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'verbose': {
+                'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+                'style': '{',
+            },
         },
-        'simple': {
-            'format': '{levelname} {asctime} {message}',
-            'style': '{',
+        'handlers': {
+            'console': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            },
         },
-    },
-    'filters': {
-        'require_debug_true': {
-            '()': 'django.utils.log.RequireDebugTrue',
-        },
-        'require_debug_false': {
-            '()': 'django.utils.log.RequireDebugFalse',
-        },
-    },
-    'handlers': {
-        'console': {
+        'root': {
+            'handlers': ['console'],
             'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
         },
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'bloom_filter_service.log',
-            'maxBytes': 1024 * 1024 * 10,  # 10 MB
-            'backupCount': 5,
-            'formatter': 'verbose',
-        },
-        'error_file': {
-            'level': 'ERROR',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'errors.log',
-            'maxBytes': 1024 * 1024 * 10,  # 10 MB
-            'backupCount': 5,
-            'formatter': 'verbose',
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'django.request': {
-            'handlers': ['console', 'error_file'],
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'bloom_filter': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        'celery': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-    },
-    'root': {
-        'handlers': ['console', 'file'],
-        'level': 'INFO',
-    },
-}
+    }
 
 
 

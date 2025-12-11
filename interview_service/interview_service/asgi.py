@@ -20,13 +20,12 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'interview_service.settings')
 # Add the parent directory to sys.path to allow importing common modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# Initialize OpenTelemetry tracing (without Django instrumentation - that happens in AppConfig.ready())
-from common.tracing import setup_tracing
-setup_tracing("interview_service", instrument_django=False)
+# Initialize logging
+from common.logging_config import setup_logging
+setup_logging("interview_service")
 
 # Initialize Django ASGI application early to ensure the AppRegistry
 # is populated before importing code that may import ORM models.
-# Django instrumentation will be automatically set up via InterviewsConfig.ready()
 django_asgi_app = get_asgi_application()
 
 # Import routing after Django initialization

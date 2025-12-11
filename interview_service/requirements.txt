@@ -55,16 +55,5 @@ python-magic==0.4.27
 # Object Storage
 minio==7.2.0
 
-# Observability
-opentelemetry-api==1.28.2
-opentelemetry-sdk==1.28.2
-opentelemetry-exporter-otlp==1.28.2
-opentelemetry-instrumentation-django==0.49b2
-opentelemetry-instrumentation-psycopg2==0.49b2
-opentelemetry-instrumentation-requests==0.49b2
-opentelemetry-instrumentation-celery==0.49b2
-opentelemetry-instrumentation-redis==0.49b2
-opentelemetry-instrumentation-confluent-kafka==0.49b2
-
 # Utilities
 requests==2.32.3

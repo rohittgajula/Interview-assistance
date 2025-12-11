@@ -57,9 +57,6 @@ class AuthEventConsumer(EventConsumer):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
-    from common.tracing import setup_tracing
-    setup_tracing("auth_service_consumer")
 
     logger.info("Starting Auth Service Kafka Consumer...")
     

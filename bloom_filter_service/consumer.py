@@ -45,9 +45,6 @@ class BloomFilterEventConsumer(EventConsumer):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
-    from common.tracing import setup_tracing
-    setup_tracing("bloom_filter_service_consumer")
 
     logger.info("Starting Bloom Filter Service Kafka Consumer...")
     

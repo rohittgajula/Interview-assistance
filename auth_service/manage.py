@@ -11,9 +11,8 @@ def main():
     # Add the parent directory to sys.path to allow importing common modules
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    from common.tracing import setup_tracing
-    # Don't instrument Django during manage.py initialization - it happens via AppConfig.ready()
-    setup_tracing("auth_service", instrument_django=False)
+    from common.logging_config import setup_logging
+    setup_logging("auth_service")
 
     try:
         from django.core.management import execute_from_command_line
