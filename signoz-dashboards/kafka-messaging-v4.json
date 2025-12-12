@@ -1,0 +1,406 @@
+{
+  "title": "Kafka Messaging Metrics",
+  "description": "Kafka producers, consumers, topics, partitions, and message flow",
+  "tags": ["kafka", "messaging", "events"],
+  "uuid": "kafka-msg-v4-001",
+  "version": "v4",
+  "layout": [
+    {
+      "i": "row-1",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 1,
+      "minW": 12,
+      "minH": 1,
+      "maxH": 1,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "kafka-produce-rate",
+      "x": 0,
+      "y": 1,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "kafka-consume-rate",
+      "x": 6,
+      "y": 1,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "kafka-topics",
+      "x": 0,
+      "y": 7,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "kafka-error-rate",
+      "x": 6,
+      "y": 7,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "kafka-latency-p99",
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "row-1",
+      "title": "Message Flow",
+      "panelTypes": "row",
+      "description": ""
+    },
+    {
+      "id": "kafka-produce-rate",
+      "title": "Kafka Produce Rate (msg/sec)",
+      "description": "Messages produced per second by topic",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateOperator": "rate",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "key": {
+                      "key": "messaging.system",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "kafka"
+                  },
+                  {
+                    "key": {
+                      "key": "messaging.operation",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "send"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "key": "messaging.destination",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                }
+              ],
+              "legend": "{{messaging.destination}}",
+              "queryName": "A",
+              "reduceTo": "sum"
+            }
+          ],
+          "queryFormulas": []
+        }
+      },
+      "yAxisUnit": "reqps"
+    },
+    {
+      "id": "kafka-consume-rate",
+      "title": "Kafka Consume Rate (msg/sec)",
+      "description": "Messages consumed per second by topic",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateOperator": "rate",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "key": {
+                      "key": "messaging.system",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "kafka"
+                  },
+                  {
+                    "key": {
+                      "key": "messaging.operation",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "receive"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "key": "messaging.destination",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                }
+              ],
+              "legend": "{{messaging.destination}}",
+              "queryName": "A",
+              "reduceTo": "sum"
+            }
+          ],
+          "queryFormulas": []
+        }
+      },
+      "yAxisUnit": "reqps"
+    },
+    {
+      "id": "kafka-topics",
+      "title": "Message Count by Topic",
+      "description": "Total messages by topic",
+      "panelTypes": "table",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "key": {
+                      "key": "messaging.system",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "kafka"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "key": "messaging.destination",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                },
+                {
+                  "key": "messaging.operation",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                }
+              ],
+              "legend": "",
+              "queryName": "A",
+              "reduceTo": "sum"
+            }
+          ],
+          "queryFormulas": []
+        }
+      }
+    },
+    {
+      "id": "kafka-error-rate",
+      "title": "Kafka Error Rate",
+      "description": "Failed Kafka operations",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateOperator": "rate",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "key": {
+                      "key": "messaging.system",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "kafka"
+                  },
+                  {
+                    "key": {
+                      "key": "status.code",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "STATUS_CODE_ERROR"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "key": "messaging.destination",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                }
+              ],
+              "legend": "{{messaging.destination}}",
+              "queryName": "A",
+              "reduceTo": "sum"
+            }
+          ],
+          "queryFormulas": []
+        }
+      },
+      "yAxisUnit": "reqps"
+    },
+    {
+      "id": "kafka-latency-p99",
+      "title": "Kafka Operation Latency P99 (ms)",
+      "description": "99th percentile latency",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateOperator": "p99",
+              "aggregateAttribute": {
+                "key": "durationNano",
+                "dataType": "float64",
+                "type": "tag",
+                "isColumn": true
+              },
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "key": {
+                      "key": "messaging.system",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": false
+                    },
+                    "op": "=",
+                    "value": "kafka"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "key": "messaging.operation",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false
+                }
+              ],
+              "legend": "{{messaging.operation}}",
+              "queryName": "A",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        }
+      },
+      "yAxisUnit": "ms"
+    }
+  ],
+  "variables": {},
+  "panelMap": {
+    "row-1": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "kafka-produce-rate",
+          "x": 0,
+          "y": 1,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "kafka-consume-rate",
+          "x": 6,
+          "y": 1,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "kafka-topics",
+          "x": 0,
+          "y": 7,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "kafka-error-rate",
+          "x": 6,
+          "y": 7,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "kafka-latency-p99",
+          "x": 0,
+          "y": 13,
+          "w": 12,
+          "h": 6,
+          "moved": false,
+          "static": false
+        }
+      ]
+    }
+  }
+}

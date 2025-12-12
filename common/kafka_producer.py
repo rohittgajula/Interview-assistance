@@ -8,10 +8,20 @@ from typing import Optional, Dict, Any
 from confluent_kafka import Producer
 from confluent_kafka import KafkaError, KafkaException
 
+# OpenTelemetry imports for manual Kafka instrumentation
+try:
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry.semconv.trace import SpanAttributes
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
+
 from .kafka_config import PRODUCER_CONFIG
 from .events import BaseEvent, serialize_event
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
 
 
 class KafkaProducerSingleton:
@@ -95,7 +105,35 @@ class EventProducer:
         key: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> bool:
+        """
+        Publish an event to a Kafka topic with OpenTelemetry instrumentation.
+        """
+        # Create OpenTelemetry span for Kafka message publishing
+        if OTEL_AVAILABLE and tracer:
+            with tracer.start_as_current_span(
+                f"{topic} send",
+                kind=trace.SpanKind.PRODUCER
+            ) as span:
+                # Set messaging semantic convention attributes
+                span.set_attribute("messaging.system", "kafka")
+                span.set_attribute("messaging.operation", "send")
+                span.set_attribute("messaging.destination", topic)
+                span.set_attribute("messaging.destination_kind", "topic")
+                span.set_attribute("messaging.kafka.message_key", key or "")
 
+                return self._publish_with_telemetry(topic, event, key, headers, span)
+        else:
+            return self._publish_with_telemetry(topic, event, key, headers, None)
+
+    def _publish_with_telemetry(
+        self,
+        topic: str,
+        event: BaseEvent,
+        key: Optional[str],
+        headers: Optional[Dict[str, str]],
+        span
+    ) -> bool:
+        """Internal method to publish event with optional span."""
         try:
             # Serialize event
             value = serialize_event(event)
@@ -124,21 +162,30 @@ class EventProducer:
                 f"Event queued: {event.event_type} to topic {topic} "
                 f"(key: {key or 'None'})"
             )
+
+            if span:
+                span.set_status(Status(StatusCode.OK))
             return True
 
-        except BufferError:
+        except BufferError as e:
             logger.error(
                 f"Local producer queue is full ({len(self.producer)} messages). "
                 "Consider increasing queue.buffering.max.messages or poll() more often."
             )
+            if span:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
             return False
 
         except KafkaException as e:
             logger.error(f"Kafka error while publishing event: {e}")
+            if span:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
             return False
 
         except Exception as e:
             logger.error(f"Unexpected error while publishing event: {e}")
+            if span:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
             return False
 
     def flush(self, timeout: int = 30):

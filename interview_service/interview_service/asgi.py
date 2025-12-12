@@ -31,6 +31,14 @@ django_asgi_app = get_asgi_application()
 # Import routing after Django initialization
 from interviews.routing import websocket_urlpatterns
 
+# Wrap Django ASGI app with OpenTelemetry middleware for proper tracing
+try:
+    from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+    django_asgi_app = OpenTelemetryMiddleware(django_asgi_app)
+    print("OpenTelemetry ASGI middleware applied to interview_service")
+except ImportError as e:
+    print(f"Warning: Could not apply OpenTelemetry ASGI middleware: {e}")
+
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AllowedHostsOriginValidator(

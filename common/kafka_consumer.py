@@ -8,10 +8,20 @@ import sys
 from typing import List, Callable, Optional, Dict, Any
 from confluent_kafka import Consumer, KafkaError, KafkaException
 
+# OpenTelemetry imports for manual Kafka instrumentation
+try:
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry.semconv.trace import SpanAttributes
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
+
 from .kafka_config import get_consumer_config
 from .events import BaseEvent, deserialize_event_auto
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
 
 
 class EventConsumer:
@@ -126,13 +136,40 @@ class EventConsumer:
                         f"{msg.topic()}[{msg.partition()}] at offset {msg.offset()}"
                     )
 
-                    # Process event
-                    success = self.process_event(event, msg)
+                    # Create OpenTelemetry span for Kafka message processing
+                    if OTEL_AVAILABLE and tracer:
+                        with tracer.start_as_current_span(
+                            f"{msg.topic()} receive",
+                            kind=trace.SpanKind.CONSUMER
+                        ) as span:
+                            # Set messaging semantic convention attributes
+                            span.set_attribute("messaging.system", "kafka")
+                            span.set_attribute("messaging.operation", "receive")
+                            span.set_attribute("messaging.destination", msg.topic())
+                            span.set_attribute("messaging.destination_kind", "topic")
+                            span.set_attribute("messaging.kafka.partition", msg.partition())
+                            span.set_attribute("messaging.kafka.offset", msg.offset())
+                            span.set_attribute("messaging.kafka.consumer_group", self.group_id)
+                            span.set_attribute("messaging.message_id", f"{msg.topic()}-{msg.partition()}-{msg.offset()}")
 
-                    if not success:
-                        logger.warning(
-                            f"Event processing returned False: {event.event_type}"
-                        )
+                            # Process event within span
+                            success = self.process_event(event, msg)
+
+                            if not success:
+                                span.set_status(Status(StatusCode.ERROR, "Event processing returned False"))
+                                logger.warning(
+                                    f"Event processing returned False: {event.event_type}"
+                                )
+                            else:
+                                span.set_status(Status(StatusCode.OK))
+                    else:
+                        # Process event without telemetry
+                        success = self.process_event(event, msg)
+
+                        if not success:
+                            logger.warning(
+                                f"Event processing returned False: {event.event_type}"
+                            )
 
                 except Exception as e:
                     self.on_error(e, msg)
