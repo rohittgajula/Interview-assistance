@@ -29,6 +29,12 @@ def configure_opentelemetry(service_name: str, service_version: str = "1.0.0"):
         service_version: Version of the service
     """
 
+    # Check if telemetry is enabled
+    telemetry_enabled = os.getenv('ENABLE_TELEMETRY', 'false').lower() == 'true'
+    if not telemetry_enabled:
+        print(f"Telemetry disabled for {service_name} (ENABLE_TELEMETRY=false)")
+        return
+
     # Get configuration from environment variables
     otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://otel-collector:4317')
     environment = os.getenv('DEPLOYMENT_ENVIRONMENT', 'development')

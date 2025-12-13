@@ -127,6 +127,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
 
   interview_service:
     build:
@@ -158,6 +159,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
 
   bloom_filter_service:
     build:
@@ -182,6 +184,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
 
   auth_celery_worker:
     build:
@@ -204,6 +207,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - signoz-net
 
   interview_celery_worker:
     build:
@@ -226,6 +230,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - signoz-net
 
   bloom_filter_celery_worker:
     build:
@@ -246,6 +251,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
 
   celery_beat:
     build:
@@ -288,6 +294,7 @@ services:
       - redis
     networks:
       - backend
+      - signoz-net
 
   auth_kafka_consumer:
     build:
@@ -306,6 +313,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
     restart: unless-stopped
 
   bloom_filter_kafka_consumer:
@@ -325,6 +333,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
     restart: unless-stopped
 
   interview_kafka_consumer:
@@ -344,6 +353,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - signoz-net
     restart: unless-stopped
 
   redis:
@@ -422,6 +432,8 @@ services:
 networks:
   backend:
     driver: bridge
+  signoz-net:
+    external: true
 
 volumes:
   auth_data:
@@ -431,3 +443,14 @@ volumes:
   zookeeper_data:
   zookeeper_logs:
   minio_data:
+
+
+# cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../.. && sleep 5 && sed -i '' 's/ENABLE_TELEMETRY=false/ENABLE_TELEMETRY=true/' auth_service/.env interview_service/.env bloom_filter_service/.env && docker compose restart
+
+# command to start signoz:
+      # cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../..
+
+
+
+# one single command to do everything:
+      # cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../.. && sleep 10 && sed -i '' 's/ENABLE_TELEMETRY=false/ENABLE_TELEMETRY=true/' auth_service/.env interview_service/.env bloom_filter_service/.env && docker compose restart

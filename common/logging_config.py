@@ -36,6 +36,11 @@ def get_otel_logging_handler(service_name):
     Returns:
         LoggingHandler or None if OTEL is not available
     """
+    # Check if telemetry is enabled
+    telemetry_enabled = os.getenv('ENABLE_TELEMETRY', 'false').lower() == 'true'
+    if not telemetry_enabled:
+        return None
+
     if not OTEL_LOGGING_AVAILABLE:
         return None
 
