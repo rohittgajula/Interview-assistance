@@ -64,6 +64,14 @@ class UserProfile(models.Model):
         return f"{self.username} ({self.role})"
 
     @property
+    def is_authenticated(self):
+        """
+        Always return True for UserProfile instances.
+        This is needed for DRF compatibility when UserProfile is used as request.user.
+        """
+        return True
+
+    @property
     def is_interviewer(self):
         return self.role == "interviewer"
 

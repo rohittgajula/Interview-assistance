@@ -92,6 +92,7 @@ services:
       /usr/bin/mc mb myminio/interview-recordings --ignore-existing;
       /usr/bin/mc mb myminio/system-backups --ignore-existing;
       /usr/bin/mc mb myminio/temporary-files --ignore-existing;
+      /usr/bin/mc mb myminio/service-logs --ignore-existing;
       /usr/bin/mc anonymous set download myminio/user-profiles;
       echo 'MinIO buckets created successfully';
       exit 0;
@@ -127,7 +128,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
 
   interview_service:
     build:
@@ -159,7 +159,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
 
   bloom_filter_service:
     build:
@@ -184,7 +183,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
 
   auth_celery_worker:
     build:
@@ -207,7 +205,6 @@ services:
         condition: service_healthy
     networks:
       - backend
-      - signoz-net
 
   interview_celery_worker:
     build:
@@ -230,7 +227,6 @@ services:
         condition: service_healthy
     networks:
       - backend
-      - signoz-net
 
   bloom_filter_celery_worker:
     build:
@@ -251,7 +247,29 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
+
+  maintenance_celery_worker:
+    build:
+      context: ./auth_service
+    container_name: maintenance_celery_worker
+    volumes:
+      - ./auth_service:/app
+      - ./auth_service/logs:/app/logs
+      - ./interview_service/logs:/app/interview_logs
+      - ./bloom_filter_service/logs:/app/bloom_logs
+      - ./common:/app/common
+    command: celery -A auth_service worker --loglevel=info --queues=maintenance_queue
+    env_file:
+      - ./auth_service/.env
+    environment:
+      - IS_CELERY_WORKER=true
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - backend
 
   celery_beat:
     build:
@@ -294,7 +312,6 @@ services:
       - redis
     networks:
       - backend
-      - signoz-net
 
   auth_kafka_consumer:
     build:
@@ -313,7 +330,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
     restart: unless-stopped
 
   bloom_filter_kafka_consumer:
@@ -333,7 +349,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
     restart: unless-stopped
 
   interview_kafka_consumer:
@@ -353,7 +368,6 @@ services:
         condition: service_started
     networks:
       - backend
-      - signoz-net
     restart: unless-stopped
 
   redis:
@@ -432,8 +446,6 @@ services:
 networks:
   backend:
     driver: bridge
-  signoz-net:
-    external: true
 
 volumes:
   auth_data:
@@ -443,14 +455,3 @@ volumes:
   zookeeper_data:
   zookeeper_logs:
   minio_data:
-
-
-# cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../.. && sleep 5 && sed -i '' 's/ENABLE_TELEMETRY=false/ENABLE_TELEMETRY=true/' auth_service/.env interview_service/.env bloom_filter_service/.env && docker compose restart
-
-# command to start signoz:
-      # cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../..
-
-
-
-# one single command to do everything:
-      # cd signoz-deploy/deploy/docker && docker compose up -d && cd ../../.. && sleep 10 && sed -i '' 's/ENABLE_TELEMETRY=false/ENABLE_TELEMETRY=true/' auth_service/.env interview_service/.env bloom_filter_service/.env && docker compose restart

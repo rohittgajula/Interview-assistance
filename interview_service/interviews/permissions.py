@@ -6,48 +6,37 @@ Implements role-based access control for candidates, interviewers, and org admin
 from rest_framework import permissions
 
 
+class IsAuthenticated(permissions.BasePermission):
+    message = "authentication credentials were not provided or are invalid."
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+
+
 class IsCandidate(permissions.BasePermission):
-    """
-    Permission class that allows only candidates.
-    """
-    message = "Only candidates can perform this action."
+    message = "only candidates can perform this action."
 
     def has_permission(self, request, view):
         return request.user and request.user.is_candidate
 
 
 class IsInterviewer(permissions.BasePermission):
-    """
-    Permission class that allows only interviewers.
-    """
-    message = "Only interviewers can perform this action."
+    message = "only interviewers can perform this action."
 
     def has_permission(self, request, view):
         return request.user and request.user.is_interviewer
 
 
 class IsOrgAdmin(permissions.BasePermission):
-    """
-    Permission class that allows only organization admins.
-    """
-    message = "Only organization admins can perform this action."
+    message = "only organization admins can perform this action."
 
     def has_permission(self, request, view):
         return request.user and request.user.is_org_admin
 
 
 class IsCandidateOrReadOnly(permissions.BasePermission):
-    """
-    Permission class that allows candidates to create/modify,
-    but allows read-only access to all authenticated users.
-    """
-
     def has_permission(self, request, view):
-        # Read permissions for any authenticated user
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_active
-
-        # Write permissions only for candidates
         return request.user and request.user.is_candidate
 
 
@@ -162,11 +151,6 @@ class CanManageAIProviders(permissions.BasePermission):
 
 
 class CanViewAnalytics(permissions.BasePermission):
-    """
-    Permission class for viewing analytics.
-    Users can view their own analytics.
-    Org admins can view all analytics.
-    """
     message = "You don't have permission to view these analytics."
 
     def has_permission(self, request, view):
@@ -202,3 +186,73 @@ class IsAuthenticatedOrCreateOnly(permissions.BasePermission):
 
         # Require authentication for all other methods
         return request.user and request.user.is_active
+
+
+class AllowAny(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return True
+
+
+class IsInterviewerOrCandidate(permissions.BasePermission):
+    """
+    Permission class that allows both interviewers and candidates.
+    Useful for endpoints accessible to all active users.
+    """
+    message = "Only interviewers and candidates can perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_interviewer or request.user.is_candidate
+
+
+class IsInterviewerOrOrgAdmin(permissions.BasePermission):
+    """
+    Permission class that allows interviewers and org admins.
+    """
+    message = "Only interviewers and organization admins can perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_interviewer or request.user.is_org_admin
+
+
+class IsCandidateOrOrgAdmin(permissions.BasePermission):
+    """
+    Permission class that allows candidates and org admins.
+    """
+    message = "Only candidates and organization admins can perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_candidate or request.user.is_org_admin
+
+
+class IsActiveUser(permissions.BasePermission):
+    """
+    Permission class that allows only active authenticated users.
+    """
+    message = "Your account is inactive or not authenticated."
+
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and request.user.is_active
+
+
+class ReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.method in permissions.SAFE_METHODS
+
+
+
+class IsTestUser(permissions.BasePermission):
+    # this always return true, for test purpose
+    message = "this is a test permission that has allow all access."
+
+    def has_permission(self, request, view):
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        # For testing: Always allow
+        return True

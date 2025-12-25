@@ -44,7 +44,7 @@ class InterviewEventConsumer(EventConsumer):
         try:
             if event.user_id:
                 try:
-                    profile = UserProfile.objects.update(id=event.user_id)
+                    profile = UserProfile.objects.get(id=event.user_id)
 
                     if event.username is not None:
                         profile.username = event.username
@@ -52,6 +52,16 @@ class InterviewEventConsumer(EventConsumer):
                         profile.email = event.email
                     if event.role is not None:
                         profile.role = event.role
+
+                    # Handle date_of_birth update
+                    if event.date_of_birth is not None:
+                        try:
+                            date_of_birth = datetime.fromisoformat(event.date_of_birth).date()
+                            profile.date_of_birth = date_of_birth
+                            logger.info(f"updated date_of_birth for user {event.user_id}: {date_of_birth}")
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Invalid date_of_birth format in update event: {event.date_of_birth}, error: {e}")
+
                     profile.save()
                     logger.info(f"update userProfile for user {event.username} - {event.user_id}")
                 except UserProfile.DoesNotExist:
@@ -79,13 +89,17 @@ class InterviewEventConsumer(EventConsumer):
 
     def _handle_user_created(self, event: UserCreatedEvent):
         try:
-            # Parse date_of_birth if provided
+            logger.info(f"Processing UserCreatedEvent - user_id: {event.user_id}, username: {event.username}, date_of_birth from event: {event.date_of_birth}")
+
             date_of_birth = None
             if event.date_of_birth:
                 try:
                     date_of_birth = datetime.fromisoformat(event.date_of_birth).date()
+                    logger.info(f"Parsed date_of_birth successfully: {date_of_birth}")
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Invalid date_of_birth format: {event.date_of_birth}, error: {e}")
+            else:
+                logger.warning(f"No date_of_birth in event for user {event.username}")
 
             profile, created = UserProfile.objects.update_or_create(
                 id=event.user_id,
@@ -100,9 +114,9 @@ class InterviewEventConsumer(EventConsumer):
             )
 
             if created:
-                logger.info(f"Created UserProfile for {event.username} (ID: {event.user_id})")
+                logger.info(f"Created UserProfile for {event.username} (ID: {event.user_id}) with date_of_birth: {date_of_birth}")
             else:
-                logger.info(f"Updated UserProfile for {event.username} (ID: {event.user_id})")
+                logger.info(f"Updated UserProfile for {event.username} (ID: {event.user_id}) with date_of_birth: {date_of_birth}")
 
         except Exception as e:
             logger.error(f"Error creating/updating UserProfile for {event.user_id}: {e}")

@@ -7,21 +7,8 @@ from common.celery_config import beat_schedule, task_routes
 # Set the default Django settings module
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bloom_filter_service.settings')
 
-# Add common directory to path for telemetry (/app/common)
+# Add common directory to path for shared configuration (/app/common)
 sys.path.insert(0, '/app/common')
-
-# Initialize OpenTelemetry for Celery workers ONLY if running as worker
-# (The __init__.py handles telemetry for Django web service)
-try:
-    is_celery_worker = os.getenv('IS_CELERY_WORKER', 'false').lower() == 'true'
-
-    if is_celery_worker:
-        from telemetry import configure_opentelemetry
-        from opentelemetry.instrumentation.celery import CeleryInstrumentor
-        configure_opentelemetry(service_name='bloom_filter_celery_worker', service_version='1.0.0')
-        CeleryInstrumentor().instrument()
-except Exception as e:
-    print(f"Warning: Failed to initialize OpenTelemetry for Celery: {e}")
 
 app = Celery('bloom_filter_service')
 
@@ -31,6 +18,9 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
+
+# Auto-discover tasks from common directory
+app.autodiscover_tasks(['common'], related_name='log_backup_tasks')
 
 # Apply shared configuration
 app.conf.beat_schedule = beat_schedule

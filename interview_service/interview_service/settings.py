@@ -174,7 +174,8 @@ CELERY_TASK_ROUTES = {
 }
 
 # MinIO Configuration (Object Storage)
-MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'minio:9000')
+MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'minio:9000')  # Internal endpoint for service-to-service communication
+MINIO_PUBLIC_ENDPOINT = os.getenv('MINIO_PUBLIC_ENDPOINT', 'localhost:9000')  # Public endpoint for browser access
 MINIO_ACCESS_KEY = os.getenv('MINIO_ROOT_USER', 'minioadmin')
 MINIO_SECRET_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'minioadmin')
 MINIO_SECURE = os.getenv('MINIO_SECURE', 'False') == 'True'

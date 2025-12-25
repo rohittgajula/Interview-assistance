@@ -1,4 +1,58 @@
+# Environment files
 .env
+*.env.local
+*.env.*.local
+!.env.example
+!.env*.example
+
+# Logs
 logs/
+*.log
+
+# Database volumes
 auth_data/
 interview_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Docker
+*.pid
