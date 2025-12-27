@@ -102,6 +102,17 @@ def get_logging_config(service_name, log_level='INFO'):
                 'level': log_level,
                 'propagate': False,
             },
+            # Application loggers (interviews, auth, etc.)
+            'interviews': {
+                'handlers': handlers_list,
+                'level': log_level,
+                'propagate': False,
+            },
+            'auth': {
+                'handlers': handlers_list,
+                'level': log_level,
+                'propagate': False,
+            },
         },
         'root': {
             'handlers': handlers_list,

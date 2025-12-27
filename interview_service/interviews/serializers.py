@@ -135,3 +135,9 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("timezone string is too long.")
         return value
 
+
+class PublicProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'username', 'full_name', 'avatar_url', 'current_job_title', 'linkedin_url', 'github_url', 'age']
+

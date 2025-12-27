@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from .permissions import IsOrgAdmin, IsTestUser
 from rest_framework.views import APIView
 from django.core.cache import cache
+from django.shortcuts import get_object_or_404
+from rest_framework import generics
 
 from .minio_utils import generate_versioned_filename, build_minio_url, parse_minio_url
 
@@ -292,8 +294,10 @@ class ResumeUploadView(APIView):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def AllUserProfiles(request):
+    logger.info("Fetching all user profiles")
     try:
         user_profiles = UserProfile.objects.all()
+        logger.info(f"Found {user_profiles.count()} user profiles")
         serializer = UserProfileSerializer(user_profiles, many=True)
         
         return Response({
@@ -426,6 +430,31 @@ class MyProfileView(APIView):
 #         "user": str(request.user) if request.user and request.user.is_authenticated else "Anonymous",
 #         "note": "This permission class should only be used for testing. Remove it in production!"
 #     }, status=status.HTTP_200_OK)
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def PublicProfileView(request, id=None):
+    # logger.info(f"type of id: {type(id)}")
+    if not id:
+        return Response({
+            "error": "id is required"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    queryset = UserProfile.objects.only(
+        'id', 'username', 'full_name', 'avatar_url', 
+        'current_job_title', 'linkedin_url', 'github_url', 'age'
+    )
+
+    profile = get_object_or_404(queryset, id=id)
+    logger.info(f"profile: {profile}")
+
+    serializer = PublicProfileSerializer(profile)
+    return Response({
+        "profile": serializer.data
+    }, status=status.HTTP_200_OK)
 
 
 

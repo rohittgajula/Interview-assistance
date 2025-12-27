@@ -89,10 +89,6 @@ class UserProfile(models.Model):
 
 
 class JobRole(models.Model):
-    """
-    Job role context for AI to generate relevant interview questions.
-    No predefined questions - AI generates dynamically based on this context.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200)  # "Senior Backend Developer"
     description = models.TextField(blank=True)  # Role responsibilities, expectations
