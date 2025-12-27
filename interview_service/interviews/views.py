@@ -5,10 +5,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from .permissions import IsOrgAdmin, IsTestUser
+from .pagination import JobRolePagination
 from rest_framework.views import APIView
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
+from django.db.models import Q, TextField
+from django.db.models.functions import Cast
 
 from .minio_utils import generate_versioned_filename, build_minio_url, parse_minio_url
 
@@ -456,5 +459,115 @@ def PublicProfileView(request, id=None):
         "profile": serializer.data
     }, status=status.HTTP_200_OK)
 
+
+class JobRoleList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        
+        # defer will skip the huge text fields
+        queryset = JobRole.objects.defer(
+            'description', 'company_context', 'custom_instructions', 'topics_to_avoid'
+        ).all()
+
+        # := means : it takes the value from query_params and assigns it to the variable
+        if experence := request.query_params.get('experience_level'):
+            queryset = queryset.filter(experience_level=experence)
+        
+        if difficulty := request.query_params.get("difficulty_level"):
+            queryset = queryset.filter(difficulty_level=difficulty)
+
+        if industry := request.query_params.get('industry'):
+            queryset = queryset.filter(industry=industry)
+
+        search_query = request.query_params.get('search')
+        if search_query:
+            # queryset = queryset.filter(
+            #     Q(title__icontains=search_query) |
+            #     Q(industry__icontains=search_query) |
+            #     Q(key_topics__icontains=search_query)
+            # )
+
+            queryset = queryset.annotate(
+                topics_str = Cast("key_topics", output_field=TextField()),
+                skills_str = Cast("required_skills", output_field=TextField())
+            ).filter(
+                Q(title__icontains=search_query) |
+                Q(industry__icontains=search_query) |
+
+                Q(topics_str__icontains=search_query) | 
+                Q(skills_str__icontains=search_query)
+            )
+
+        ordering = request.query_params.get('ordering', '-created_at')
+        valid_sort_fields = ['created_at', '-created_at', 'title', '-title', 'difficulty_level', '-difficulty_level']
+        if ordering in valid_sort_fields:
+            queryset = queryset.order_by(ordering)
+
+        paginator = JobRolePagination()
+        page = paginator.paginate_queryset(queryset, request)
+
+        if page is not None:
+            serializer = JobRoleSerializer(page, many=True, context={'request': request})
+            return paginator.get_paginated_response(serializer.data)
+
+        return Response(JobRoleSerializer(queryset, many=True).data)
+    
+    def post(self, request):
+        data = request.data
+        serializer = JobRoleSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            "error": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class JobRoleDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        role = get_object_or_404(JobRole, pk=pk)
+        logger.info(f"title : {role.title}")
+        serializer = JobRoleSerializer(role)
+        return Response({
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def put(self, request, pk):
+        data = request.data
+
+        role = get_object_or_404(JobRole, pk=pk)
+        serializer = JobRoleSerializer(role, data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            "error": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, pk):
+        data = request.data
+
+        role = get_object_or_404(JobRole, pk=pk)
+        serializer = JobRoleSerializer(role, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            "error": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        role = get_object_or_404(JobRole, pk=pk)
+        role.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 

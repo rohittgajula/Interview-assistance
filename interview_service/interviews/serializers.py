@@ -141,3 +141,18 @@ class PublicProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = ['id', 'username', 'full_name', 'avatar_url', 'current_job_title', 'linkedin_url', 'github_url', 'age']
 
+class JobRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobRole
+        fields = "__all__"
+
+    def validate(self, data):
+        tech = data.get("technical_weight", self.instance.technical_weight if self.instance else 0.4)
+        behav = data.get('behavioral_weight', self.instance.behavioral_weight if self.instance else 0.3)
+        situa = data.get('situational_weight', self.instance.situational_weight if self.instance else 0.2)
+        gen = data.get('general_weight', self.instance.general_weight if self.instance else 0.1)
+
+        if not (0.99 <= (tech + behav + situa + gen) <= 1.01):
+            raise serializers.ValidationError("weights must sum to 1.0")
+        return data
+    
