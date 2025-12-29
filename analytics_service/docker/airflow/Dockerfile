@@ -9,11 +9,13 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy and install requirements (as root to ensure correct permissions)
+COPY requirements.txt /tmp/requirements.txt
+RUN chown airflow:root /tmp/requirements.txt
+
 USER airflow
 
-# Copy and install requirements
-COPY requirements.txt /opt/airflow/requirements.txt
-RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Install Airflow Spark provider
 RUN pip install apache-airflow-providers-apache-spark==4.7.1

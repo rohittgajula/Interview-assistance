@@ -1,4 +1,4 @@
-FROM bitnami/spark:3.5
+FROM apache/spark:3.5.1-python3
 
 USER root
 
@@ -14,4 +14,4 @@ COPY config /opt/spark-apps/config
 # Set working directory
 WORKDIR /opt/spark-apps
 
-USER 1001
+USER root
