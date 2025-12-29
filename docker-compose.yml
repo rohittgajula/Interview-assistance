@@ -43,7 +43,7 @@ services:
     depends_on:
       - kafka
     ports:
-      - "8081:8080"
+      - "8084:8080"  # Changed from 8081 to avoid conflict with Airflow
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
@@ -443,6 +443,262 @@ services:
     networks:
       - backend
 
+  # ==================== ANALYTICS SERVICE: APACHE SPARK CLUSTER ====================
+
+  # Spark Master
+  spark-master:
+    image: bitnami/spark:3.5
+    container_name: analytics-spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8082:8080"  # Spark Master UI
+      - "7077:7077"  # Spark Master port
+    volumes:
+      - ./analytics_service/spark:/opt/spark-apps/spark
+      - ./analytics_service/kafka_integration:/opt/spark-apps/kafka_integration
+      - ./analytics_service/config:/opt/spark-apps/config
+      - spark_data:/opt/spark-data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # Spark Worker 1
+  spark-worker-1:
+    image: bitnami/spark:3.5
+    container_name: analytics-spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./analytics_service/spark:/opt/spark-apps/spark
+      - ./analytics_service/kafka_integration:/opt/spark-apps/kafka_integration
+      - ./analytics_service/config:/opt/spark-apps/config
+      - spark_data:/opt/spark-data
+    depends_on:
+      - spark-master
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # Spark Worker 2
+  spark-worker-2:
+    image: bitnami/spark:3.5
+    container_name: analytics-spark-worker-2
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./analytics_service/spark:/opt/spark-apps/spark
+      - ./analytics_service/kafka_integration:/opt/spark-apps/kafka_integration
+      - ./analytics_service/config:/opt/spark-apps/config
+      - spark_data:/opt/spark-data
+    depends_on:
+      - spark-master
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # ==================== ANALYTICS SERVICE: APACHE AIRFLOW ====================
+
+  # PostgreSQL for Airflow
+  postgres-airflow:
+    image: postgres:16-alpine
+    container_name: analytics-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Analytics (Airflow + caching)
+  redis-analytics:
+    image: redis:7-alpine
+    container_name: analytics-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_analytics_data:/data
+    networks:
+      - backend
+    ports:
+      - "6380:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Airflow Init
+  airflow-init:
+    build:
+      context: ./analytics_service
+      dockerfile: docker/airflow/Dockerfile
+    container_name: analytics-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # Airflow Webserver
+  airflow-webserver:
+    build:
+      context: ./analytics_service
+      dockerfile: docker/airflow/Dockerfile
+    container_name: analytics-airflow-webserver
+    command: airflow webserver
+    ports:
+      - "8081:8080"  # Airflow UI
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      SPARK_MASTER_URL: spark://spark-master:7077
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis-analytics
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./analytics_service/airflow/dags:/opt/airflow/dags
+      - ./analytics_service/spark:/opt/spark-apps
+      - ./analytics_service/config:/opt/airflow/config
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      redis-analytics:
+        condition: service_healthy
+      spark-master:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    build:
+      context: ./analytics_service
+      dockerfile: docker/airflow/Dockerfile
+    container_name: analytics-airflow-scheduler
+    command: airflow scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      SPARK_MASTER_URL: spark://spark-master:7077
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis-analytics
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./analytics_service/airflow/dags:/opt/airflow/dags
+      - ./analytics_service/spark:/opt/spark-apps
+      - ./analytics_service/config:/opt/airflow/config
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      redis-analytics:
+        condition: service_healthy
+      spark-master:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ==================== ANALYTICS SERVICE: KAFKA TO SPARK BRIDGE ====================
+
+  kafka-spark-bridge:
+    build:
+      context: ./analytics_service
+      dockerfile: docker/spark/Dockerfile
+    container_name: analytics-kafka-spark-bridge
+    command: python /opt/spark-apps/kafka_integration/kafka_to_spark.py
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPARK_MASTER_URL: spark://spark-master:7077
+      REDIS_HOST: redis-analytics
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./analytics_service/spark:/opt/spark-apps/spark
+      - ./analytics_service/kafka_integration:/opt/spark-apps/kafka_integration
+      - ./analytics_service/config:/opt/spark-apps/config
+    depends_on:
+      spark-master:
+        condition: service_started
+      redis-analytics:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
 networks:
   backend:
     driver: bridge
@@ -455,3 +711,8 @@ volumes:
   zookeeper_data:
   zookeeper_logs:
   minio_data:
+  # Analytics Service volumes
+  postgres_airflow_data:
+  redis_analytics_data:
+  airflow_logs:
+  spark_data:

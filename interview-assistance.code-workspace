@@ -1,25 +1,28 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "auth_service"
-		},
-		{
-			"path": "beat_data"
-		},
-		{
-			"path": "bloom_filter_service"
-		},
-		{
-			"path": "common"
-		},
-		{
-			"path": "interview_service"
-		},
-		{
-			"path": "nginx"
-		}
-	]
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "auth_service"
+    },
+    {
+      "path": "beat_data"
+    },
+    {
+      "path": "bloom_filter_service"
+    },
+    {
+      "path": "common"
+    },
+    {
+      "path": "interview_service"
+    },
+    {
+      "path": "nginx"
+    },
+    {
+      "path": "analytics_service"
+    }
+  ]
 }

@@ -1,0 +1,355 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    ANALYTICS SERVICE - COMPLETE FLOW                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FLOW 1: QUESTION GENERATION (Before Session Starts)                          │
+│ Method: Airflow DAG (Async, Background)                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    USER                interview_service         KAFKA           analytics_service
+     │                         │                    │                     │
+     │  1. Create Session      │                    │                     │
+     ├────────────────────────>│                    │                     │
+     │                         │                    │                     │
+     │                         │ 2. Save to DB      │                     │
+     │                         │  (status=scheduled)│                     │
+     │                         │                    │                     │
+     │                         │ 3. Publish Event   │                     │
+     │                         ├───────────────────>│                     │
+     │                         │ practice-session   │                     │
+     │                         │    .created        │                     │
+     │                         │                    │                     │
+     │                         │                    │ 4. Consume Event    │
+     │                         │                    ├────────────────────>│
+     │                         │                    │                     │
+     │                         │                    │         ┌───────────┴──────────┐
+     │                         │                    │         │ Trigger Airflow DAG  │
+     │                         │                    │         │ generate_questions   │
+     │                         │                    │         │                      │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 5. Check Redis  │  │
+     │                         │                    │         │ │    Cache        │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 6. Call OpenAI  │  │
+     │                         │                    │         │ │   Generate 5    │  │
+     │                         │                    │         │ │   Questions     │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 7. Cache Redis  │  │
+     │                         │                    │         │ │    (TTL: 2h)    │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │8. Publish to    │  │
+     │                         │                    │<────────┼─┤  Kafka (x5)     │  │
+     │                         │   question.generated         │ │  topic          │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │<───────────────────┤         └──────────────────────┘
+     │                         │                    │
+     │                         │ 9. Save Questions  │
+     │                         │    to DB (x5)      │
+     │                         │                    │
+     │  10. "Questions Ready!" │                    │
+     │<────────────────────────┤                    │
+     │                         │                    │
+
+    ⏱️ Time: ~30 seconds (runs in background)
+    💾 Storage: PostgreSQL (SessionQuestion table)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FLOW 2: SESSION START & ANSWER PROCESSING (Real-time)                        │
+│ Method: Spark Streaming (Runs 24/7, Instant Feedback)                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    USER                interview_service         KAFKA           Spark Cluster
+     │                         │                    │                     │
+     │  1. Start Session       │                    │                     │
+     ├────────────────────────>│                    │                     │
+     │                         │                    │                     │
+     │                         │ 2. Update DB       │                     │
+     │                         │  status=in_progress│                     │
+     │                         │                    │                     │
+     │  3. Show Question #1    │                    │                     │
+     │<────────────────────────┤                    │                     │
+     │                         │                    │                     │
+     │  4. User Answers Q1     │                    │                     │
+     │  (2 minutes speaking)   │                    │                     │
+     │                         │                    │                     │
+     │  5. Submit Answer       │                    │                     │
+     ├────────────────────────>│                    │                     │
+     │                         │                    │                     │
+     │                         │ 6. Save to DB      │                     │
+     │                         │  (answer_transcript)                     │
+     │                         │                    │                     │
+     │                         │ 7. Publish Event   │                     │
+     │                         ├───────────────────>│                     │
+     │                         │ answer.submitted   │                     │
+     │                         │                    │                     │
+     │                         │                    │ 8. Consume Event    │
+     │                         │                    ├────────────────────>│
+     │                         │                    │                     │
+     │                         │                    │         ┌───────────┴──────────┐
+     │                         │                    │         │ Spark Streaming Job  │
+     │                         │                    │         │ (kafka_to_spark.py)  │
+     │                         │                    │         │                      │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 9. Check Redis  │  │
+     │                         │                    │         │ │    Cache        │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │10. Call OpenAI  │  │
+     │                         │                    │         │ │   Analyze Answer│  │
+     │                         │                    │         │ │   - Technical   │  │
+     │                         │                    │         │ │   - Comm Score  │  │
+     │                         │                    │         │ │   - Behavioral  │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │11. Cache Result │  │
+     │                         │                    │         │ │    Redis (2h)   │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │12. Publish      │  │
+     │                         │                    │<────────┼─┤   Feedback      │  │
+     │                         │  feedback.generated          │ └─────────────────┘  │
+     │                         │<───────────────────┤         └──────────────────────┘
+     │                         │                    │
+     │                         │13. Save to DB      │
+     │                         │  (QuestionFeedback)│
+     │                         │                    │
+     │ 14. Show Instant        │                    │
+     │     Feedback!           │                    │
+     │  ┌─────────────────┐   │                    │
+     │  │ Score: 85/100   │<──┤                    │
+     │  │ Strengths: ...  │   │                    │
+     │  │ Improve: ...    │   │                    │
+     │  └─────────────────┘   │                    │
+     │                         │                    │
+     │  15. Show Question #2   │                    │
+     │<────────────────────────┤                    │
+     │                         │                    │
+     │  [REPEAT Steps 4-15 for Questions 2-5]      │
+     │                         │                    │
+
+    ⏱️ Time per answer: 3-7 seconds
+    💾 Storage: PostgreSQL (QuestionFeedback) + Redis cache
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FLOW 3: SESSION REPORT GENERATION (Real-time, Immediate)                     │
+│ Method: Spark Streaming (Same job as answer processing)                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    USER                interview_service         KAFKA           Spark Cluster
+     │                         │                    │                     │
+     │  1. Answer Last Q       │                    │                     │
+     │  OR Click "End Session" │                    │                     │
+     ├────────────────────────>│                    │                     │
+     │                         │                    │                     │
+     │                         │ 2. Update DB       │                     │
+     │                         │  status=completed  │                     │
+     │                         │  ended_at=now()    │                     │
+     │                         │                    │                     │
+     │                         │ 3. Publish Event   │                     │
+     │                         ├───────────────────>│                     │
+     │                         │ session.completed  │                     │
+     │                         │                    │                     │
+     │                         │                    │ 4. Consume Event    │
+     │                         │                    ├────────────────────>│
+     │                         │                    │                     │
+     │                         │                    │         ┌───────────┴──────────┐
+     │                         │                    │         │ Spark Streaming Job  │
+     │                         │                    │         │                      │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 5. Fetch All    │  │
+     │                         │                    │         │ │    Feedback     │  │
+     │                         │                    │         │ │    from Redis   │  │
+     │                         │                    │         │ │    (Q1-Q5)      │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 6. Aggregate    │  │
+     │                         │                    │         │ │    Scores with  │  │
+     │                         │                    │         │ │    Spark SQL    │  │
+     │                         │                    │         │ │                 │  │
+     │                         │                    │         │ │ • Overall avg   │  │
+     │                         │                    │         │ │ • Tech avg      │  │
+     │                         │                    │         │ │ • Comm avg      │  │
+     │                         │                    │         │ │ • Trends        │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 7. Call OpenAI  │  │
+     │                         │                    │         │ │   for Summary   │  │
+     │                         │                    │         │ │                 │  │
+     │                         │                    │         │ │ • 2-3 sentences │  │
+     │                         │                    │         │ │ • 5 strengths   │  │
+     │                         │                    │         │ │ • 5 improvements│  │
+     │                         │                    │         │ │ • 5 recommends  │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 8. Cache Report │  │
+     │                         │                    │         │ │    Redis (24h)  │  │
+     │                         │                    │         │ └─────────────────┘  │
+     │                         │                    │         │         │            │
+     │                         │                    │         │         ▼            │
+     │                         │                    │         │ ┌─────────────────┐  │
+     │                         │                    │         │ │ 9. Publish      │  │
+     │                         │                    │<────────┼─┤   Report        │  │
+     │                         │   report.generated           │ └─────────────────┘  │
+     │                         │<───────────────────┤         └──────────────────────┘
+     │                         │                    │
+     │                         │10. Save to DB      │
+     │                         │  (SessionReport)   │
+     │                         │                    │
+     │ 11. Show Complete       │                    │
+     │     Report!             │                    │
+     │  ┌─────────────────┐   │                    │
+     │  │ Overall: 79.5   │<──┤                    │
+     │  │ Summary: ...    │   │                    │
+     │  │ Strengths: ...  │   │                    │
+     │  │ Improve: ...    │   │                    │
+     │  │ [Download PDF]  │   │                    │
+     │  └─────────────────┘   │                    │
+     │                         │                    │
+
+    ⏱️ Time: 5-10 seconds
+    💾 Storage: PostgreSQL (SessionReport) + Redis cache
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FLOW 4: ANALYTICS REPORTS (Batch, Background)                                │
+│ Method: Airflow DAG (Scheduled Daily or On-Demand)                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Option A: SCHEDULED (Automatic - Daily at 2 AM)
+───────────────────────────────────────────────
+
+    Airflow Scheduler                 Spark Cluster          PostgreSQL
+     │                                       │                    │
+     │  1. Trigger at 2:00 AM               │                    │
+     │      daily_analytics_dag              │                    │
+     ├──────────────────────────────────────>│                    │
+     │                                       │                    │
+     │                                       │ 2. Read Sessions   │
+     │                                       ├───────────────────>│
+     │                                       │  WHERE date =      │
+     │                                       │  YESTERDAY         │
+     │                                       │                    │
+     │                                       │<───────────────────┤
+     │                                       │  (1000+ sessions)  │
+     │                                       │                    │
+     │                                       │                    │
+     │                          ┌────────────┴──────────┐        │
+     │                          │ 3. Spark SQL Analysis │        │
+     │                          │                       │        │
+     │                          │ SELECT                │        │
+     │                          │   user_id,            │        │
+     │                          │   COUNT(*) sessions,  │        │
+     │                          │   AVG(score) avg,     │        │
+     │                          │   -- Trends           │        │
+     │                          │   -- Comparisons      │        │
+     │                          │ GROUP BY user_id      │        │
+     │                          └────────────┬──────────┘        │
+     │                                       │                    │
+     │                                       │ 4. Calculate       │
+     │                                       │    Insights        │
+     │                                       │  • Top performers  │
+     │                                       │  • Trends          │
+     │                                       │  • Patterns        │
+     │                                       │                    │
+     │                                       │ 5. Save Results    │
+     │                                       ├───────────────────>│
+     │                                       │  (analytics tables)│
+     │                                       │                    │
+     │  6. DAG Complete                      │                    │
+     │<──────────────────────────────────────┤                    │
+     │  ✓ Success                            │                    │
+     │                                       │                    │
+
+    ⏱️ Time: 2-5 minutes
+    📊 Frequency: Daily at 2:00 AM
+    💾 Storage: PostgreSQL analytics tables + Redis cache
+
+
+Option B: ON-DEMAND (Manual - API Trigger)
+───────────────────────────────────────────
+
+    Admin/User         interview_service    analytics_service    Spark
+     │                         │                    │              │
+     │  1. Click "Generate     │                    │              │
+     │     Analytics Report"   │                    │              │
+     ├────────────────────────>│                    │              │
+     │                         │                    │              │
+     │                         │ 2. API Call        │              │
+     │                         ├───────────────────>│              │
+     │                         │ POST /api/         │              │
+     │                         │   analytics/       │              │
+     │                         │   generate-report  │              │
+     │                         │                    │              │
+     │                         │                    │ 3. Trigger   │
+     │                         │                    │    Airflow   │
+     │                         │                    │    DAG       │
+     │                         │                    ├─────────────>│
+     │                         │                    │              │
+     │                         │                    │     ┌────────┴───────┐
+     │                         │                    │     │ 4. Run Spark   │
+     │                         │                    │     │    Job         │
+     │                         │                    │     │                │
+     │                         │                    │     │ • Read data    │
+     │                         │                    │     │ • Analyze      │
+     │                         │                    │     │ • Generate PDF │
+     │                         │                    │     └────────┬───────┘
+     │                         │                    │              │
+     │                         │                    │ 5. Complete  │
+     │                         │                    │<─────────────┤
+     │                         │ 6. Return URL      │              │
+     │                         │<───────────────────┤              │
+     │                         │ {report_id, pdf_url}              │
+     │  7. Download Report     │                    │              │
+     │<────────────────────────┤                    │              │
+     │  [PDF Link]             │                    │              │
+     │                         │                    │              │
+
+    ⏱️ Time: 1-3 minutes
+    📊 Frequency: On-demand (when requested)
+    💾 Storage: S3/MinIO (PDFs) + PostgreSQL metadata
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           SUMMARY TABLE                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────┬──────────────┬────────────────┬────────────┬───────────┐
+│ Flow                │ Method       │ Trigger        │ Time       │ Storage   │
+├─────────────────────┼──────────────┼────────────────┼────────────┼───────────┤
+│ Question Generation │ Airflow DAG  │ Kafka event    │ ~30 sec    │ PostgreSQL│
+│ Answer Processing   │ Spark Stream │ Real-time      │ 3-7 sec    │ PostgreSQL│
+│ Session Report      │ Spark Stream │ Real-time      │ 5-10 sec   │ PostgreSQL│
+│ Daily Analytics     │ Airflow DAG  │ Schedule (2AM) │ 2-5 min    │ PostgreSQL│
+│ On-Demand Analytics │ Airflow DAG  │ API call       │ 1-3 min    │ S3/MinIO  │
+└─────────────────────┴──────────────┴────────────────┴────────────┴───────────┘
+
+✅ Real-time UX: Users see feedback instantly (3-7 sec per answer)
+✅ Async Questions: Generated in background, ready before session
+✅ Immediate Reports: Session report ready 5-10 sec after completion
+✅ Batch Analytics: Complex analytics run in background (no user wait)
+✅ Scalable: Spark cluster handles thousands of concurrent sessions
+✅ Cost-effective: Redis caching reduces AI API costs by 80%
